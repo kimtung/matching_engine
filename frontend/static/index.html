@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matching Engine Visualizer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">Matching Engine Drill</p>
+      <h1>Order Book Visualizer</h1>
+      <p class="lede">Frontend app tach rieng, goi backend qua HTTP API va nhan cap nhat realtime qua WebSocket.</p>
+      <div class="hero-meta">
+        <span class="pill socket offline" id="socket-status">Socket connecting</span>
+        <span class="pill" id="backend-target">Backend: http://127.0.0.1:8000</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <form id="order-form" class="panel form-panel">
+        <h2>Place Order</h2>
+        <label>
+          Order ID
+          <input id="order-id" name="order_id" placeholder="Auto-generate if empty" />
+        </label>
+        <div class="two-col">
+          <label>
+            Side
+            <select id="side" name="side">
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
+            </select>
+          </label>
+          <label>
+            Type
+            <select id="order-type" name="order_type">
+              <option value="LIMIT">LIMIT</option>
+              <option value="MARKET">MARKET</option>
+            </select>
+          </label>
+        </div>
+        <div class="two-col">
+          <label>
+            Quantity
+            <input id="quantity" name="quantity" type="number" min="1" value="1" required />
+          </label>
+          <label id="price-field">
+            Price
+            <input id="price" name="price" type="number" min="0" step="0.01" value="100" />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit">Submit Order</button>
+          <button type="button" id="reset-btn" class="secondary">Reset Book</button>
+        </div>
+      </form>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Active Orders</h2>
+          <span id="order-count" class="pill">0 orders</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Side</th>
+                <th>Type</th>
+                <th>Price</th>
+                <th>Remaining</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="orders-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="books">
+      <article class="panel book sell-book">
+        <div class="panel-head">
+          <h2>Sell Book</h2>
+          <span id="sell-depth" class="pill">0 levels</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Price</th>
+                <th>Remaining</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="sells-body"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel book buy-book">
+        <div class="panel-head">
+          <h2>Buy Book</h2>
+          <span id="buy-depth" class="pill">0 levels</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Price</th>
+                <th>Remaining</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="buys-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Trade History</h2>
+        <span id="trade-count" class="pill">0 trades</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Buy Order</th>
+              <th>Sell Order</th>
+              <th>Price</th>
+              <th>Qty</th>
+              <th>Aggressor</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="flash" class="flash hidden"></section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

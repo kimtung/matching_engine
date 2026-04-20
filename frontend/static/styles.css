@@ -1,0 +1,236 @@
+:root {
+  --bg: #f6f1e7;
+  --panel: rgba(255, 251, 245, 0.9);
+  --line: #ddcfbd;
+  --text: #1d2a33;
+  --muted: #5e6d77;
+  --buy: #0f766e;
+  --sell: #b91c1c;
+  --accent: #9a3412;
+  --shadow: 0 18px 50px rgba(77, 53, 29, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(250, 224, 180, 0.5), transparent 28%),
+    radial-gradient(circle at top right, rgba(175, 221, 214, 0.4), transparent 24%),
+    linear-gradient(180deg, #f7f4ec 0%, var(--bg) 100%);
+}
+
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 18px 48px;
+}
+
+.hero {
+  padding: 10px 4px 24px;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+h1, h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 3vw, 3.4rem);
+}
+
+.lede {
+  max-width: 760px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.layout,
+.books {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  backdrop-filter: blur(12px);
+}
+
+.form-panel label {
+  display: block;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  margin-top: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #c2410c, #9a3412);
+  border: none;
+  font-weight: 700;
+}
+
+button.secondary {
+  background: #e9dfd0;
+  color: var(--text);
+}
+
+button.danger {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+}
+
+button.small {
+  width: auto;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #efe4d2;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pill.socket.online {
+  color: var(--buy);
+  background: #d7f3ee;
+}
+
+.pill.socket.offline {
+  color: var(--sell);
+  background: #f8dedd;
+}
+
+.book.buy-book .pill {
+  color: var(--buy);
+}
+
+.book.sell-book .pill {
+  color: var(--sell);
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid #eadfce;
+  white-space: nowrap;
+}
+
+th {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+}
+
+.flash {
+  position: sticky;
+  bottom: 16px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.flash.success {
+  background: linear-gradient(135deg, #0f766e, #115e59);
+}
+
+.flash.error {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+}
+
+.flash.info {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .layout,
+  .books,
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}

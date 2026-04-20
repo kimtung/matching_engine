@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hackathon TODO Task</title>
+  <style>
+    :root {
+      --bg: #f5efe6;
+      --panel: #fffaf4;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --accent: #b45309;
+      --accent-soft: #fde7c7;
+      --border: #e7d7bf;
+      --ok: #166534;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top left, #fff6e8 0, transparent 35%),
+        linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 12px 30px rgba(70, 48, 18, 0.08);
+      margin-bottom: 24px;
+    }
+
+    h1, h2 {
+      margin: 0 0 12px;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: 34px;
+    }
+
+    h2 {
+      font-size: 22px;
+      color: var(--accent);
+      margin-top: 28px;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(70, 48, 18, 0.06);
+    }
+
+    ul {
+      margin: 12px 0 0;
+      padding-left: 20px;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .priority {
+      margin-top: 24px;
+      padding: 18px 20px;
+      border-left: 5px solid var(--ok);
+      background: #f2fbf3;
+      border-radius: 12px;
+    }
+
+    .priority strong {
+      color: var(--ok);
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="badge">Checklist trước hackathon</div>
+      <h1>TODO chuẩn bị cho bài thi matching engine</h1>
+      <p>Mục tiêu là vào repo và xử lý nhanh 3 việc: hiểu cấu trúc dự án, tìm và fix bug, thêm feature mới trong giới hạn khoảng 1 giờ.</p>
+      <p>Ưu tiên chuẩn bị theo hướng tăng tốc độ đọc code, khoanh vùng lỗi nhanh, và giảm thời gian setup khi đề được mở.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>1. Chuẩn bị môi trường</h2>
+        <ul>
+          <li>Cài sẵn các tool sẽ dùng: Git, Docker, Node/Python/Java tương ứng, editor, terminal, test runner.</li>
+          <li>Chuẩn bị sẵn template ghi chú để note nhanh: kiến trúc, bug, giả thuyết, cách reproduce, fix đã thử.</li>
+          <li>Tạo sẵn danh sách lệnh thường dùng: chạy app, chạy test, grep code, format, lint, debug log.</li>
+          <li>Chuẩn bị script hoặc alias để tìm file nhanh, search symbol, xem tree project, diff thay đổi.</li>
+          <li>Kiểm tra trước Claude Code hoặc workflow AI hỗ trợ để dùng được ngay khi repo được phát.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>2. Rèn quy trình đọc codebase nhanh</h2>
+        <ul>
+          <li>Luyện thói quen đọc theo thứ tự: README, config, entrypoint, module chính, test, schema, docs.</li>
+          <li>Chuẩn bị checklist phân tích kiến trúc: luồng request, business flow, matching flow, persistence, queue/cache.</li>
+          <li>Luyện cách vẽ sơ đồ nhanh từ code: input, xử lý, rule matching, output, side effects.</li>
+          <li>Chuẩn bị mẫu mô tả project ngắn gọn: mục đích, thành phần chính, luồng dữ liệu, điểm mở rộng.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>3. Chuẩn bị chiến lược tìm bug</h2>
+        <ul>
+          <li>Luyện quy trình: reproduce bug, khoanh vùng module, đọc log, đọc test, tạo giả thuyết, fix nhỏ, verify.</li>
+          <li>Ôn lại các nhóm bug hay gặp trong matching engine: sort sai, race condition, off-by-one, timeout, precision, rule priority.</li>
+          <li>Chuẩn bị checklist đọc bug: dữ liệu đầu vào nào gây lỗi, có deterministic không, có liên quan concurrency không.</li>
+          <li>Luyện viết test trước hoặc test tái hiện bug thật nhanh để khóa hành vi trước khi sửa.</li>
+          <li>Chuẩn bị mindset ưu tiên bug impact lớn trước: crash, sai kết quả matching, mất dữ liệu, performance nghẽn.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>4. Chuẩn bị cho phần thêm feature</h2>
+        <ul>
+          <li>Ôn cách xác định feature impact: thay đổi model nào, API nào, service nào, test nào, migration nào.</li>
+          <li>Chuẩn bị mẫu câu hỏi tự kiểm tra: feature này ảnh hưởng backward compatibility không, có edge case không.</li>
+          <li>Luyện cách implement tối thiểu nhưng an toàn: ít thay đổi, dễ test, dễ giải thích với ban tổ chức.</li>
+          <li>Chuẩn bị template commit hoặc note thay đổi để trình bày rõ feature đã làm gì và chưa làm gì.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>5. Chuẩn bị kỹ năng trình bày</h2>
+        <ul>
+          <li>Chuẩn bị mẫu mô tả bug fix: nguyên nhân, cách phát hiện, cách sửa, cách verify.</li>
+          <li>Chuẩn bị mẫu mô tả kiến trúc project trong 1-2 phút, tránh lan man.</li>
+          <li>Chuẩn bị cách giải thích trade-off: vì sao chọn fix này, vì sao chưa refactor lớn.</li>
+          <li>Luyện viết summary cuối bài ngắn gọn, có số liệu hoặc ví dụ cụ thể nếu có.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>6. Chiến thuật trong 1 giờ thi</h2>
+        <ul>
+          <li>5-10 phút đầu: setup, chạy project, chạy test, đọc nhanh cấu trúc tổng thể.</li>
+          <li>15-20 phút tiếp: khoanh vùng bug, tái hiện lỗi, fix bug nặng trước.</li>
+          <li>15-20 phút sau: làm feature với phạm vi nhỏ nhưng hoàn chỉnh.</li>
+          <li>10 phút cuối: chạy lại test, review diff, ghi summary, chuẩn bị phần giải thích.</li>
+          <li>Nếu bị kẹt quá lâu ở một bug, chuyển sang bug khác hoặc feature để tránh mất toàn bộ điểm.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="priority">
+      <strong>Ưu tiên chuẩn bị nhất:</strong> môi trường chạy code thật nhanh, quy trình đọc codebase có hệ thống, kỹ năng viết test tái hiện bug, và template ghi chú để mô tả kiến trúc cùng bug fix rõ ràng khi nộp bài.
+    </section>
+  </main>
+</body>
+</html>
