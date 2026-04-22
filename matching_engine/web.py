@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
+import uuid
 
 from aiohttp import WSMsgType, web
 
@@ -12,6 +14,9 @@ CORS_HEADERS = {
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
+
+# BUG-05 fix: reset requires ADMIN_TOKEN env var to be set and matched
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 
 
 class EngineHub:
@@ -27,14 +32,17 @@ class EngineHub:
             "active_orders": self.service.get_active_orders(),
         }
 
-    async def broadcast(self, event: str, trades: list[dict] | None = None) -> None:
+    async def broadcast(self, event: str, trades: list[dict] | None = None, state: dict | None = None) -> None:
+        # BUG-08 fix: accept pre-captured state so broadcast uses the same snapshot
+        # that was captured inside the lock, preventing state/trade mismatch
         payload = {
             "event": event,
-            "state": self.state(),
+            "state": state if state is not None else self.state(),
             "trades": trades or [],
         }
         stale_clients: list[web.WebSocketResponse] = []
-        for client in self.clients:
+        # BUG-07 fix: snapshot set to prevent RuntimeError if clients mutate during await
+        for client in list(self.clients):
             if client.closed:
                 stale_clients.append(client)
                 continue
@@ -78,47 +86,81 @@ async def get_state(request: web.Request) -> web.Response:
 
 async def place_order(request: web.Request) -> web.Response:
     hub: EngineHub = request.app["hub"]
-    payload = await request.json()
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "invalid JSON body"}, status=400)
+
+    # BUG-10 fix: validate required fields before processing
+    side = payload.get("side")
+    if side not in ("BUY", "SELL"):
+        return web.json_response({"ok": False, "error": "side must be BUY or SELL"}, status=400)
+
+    try:
+        quantity = int(payload["quantity"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "quantity must be a positive integer"}, status=400)
+    if quantity <= 0:
+        return web.json_response({"ok": False, "error": "quantity must be positive"}, status=400)
+
     order_type = payload.get("order_type", "LIMIT")
-    order_id = payload.get("order_id") or f"ORD-{int(time.time() * 1000)}"
-    side = payload["side"]
-    quantity = int(payload["quantity"])
+    # BUG-09 fix: use UUID to avoid millisecond timestamp collision
+    order_id = payload.get("order_id") or f"ORD-{uuid.uuid4().hex[:12].upper()}"
     timestamp = int(payload.get("timestamp") or time.time() * 1000)
 
     async with hub.lock:
         if order_type == "MARKET":
             trades = hub.service.place_market_order(order_id, side, quantity, timestamp)
         else:
-            price = float(payload["price"])
+            try:
+                price = float(payload["price"])
+            except (KeyError, TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "price must be a positive number"}, status=400)
+            if price <= 0:
+                return web.json_response({"ok": False, "error": "price must be positive"}, status=400)
             trades = hub.service.place_limit_order(order_id, side, quantity, price, timestamp)
         state = hub.state()
 
-    await hub.broadcast("order_placed", trades)
+    # BUG-08 fix: pass captured state into broadcast so clients see consistent snapshot
+    await hub.broadcast("order_placed", trades, state)
     return web.json_response({"ok": True, "trades": trades, "state": state}, status=201)
 
 
 async def cancel_order(request: web.Request) -> web.Response:
     hub: EngineHub = request.app["hub"]
-    payload = await request.json()
-    order_id = payload["order_id"]
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "invalid JSON body"}, status=400)
+
+    order_id = payload.get("order_id")
+    if not order_id:
+        return web.json_response({"ok": False, "error": "order_id is required"}, status=400)
 
     async with hub.lock:
         cancelled = hub.service.cancel_order(order_id)
         state = hub.state()
 
     if cancelled:
-        if order_id.startswith("B"):
-            await hub.broadcast("order_cancelled")
+        # BUG-04 fix: broadcast for ALL cancelled orders, not just "B"-prefixed ones
+        await hub.broadcast("order_cancelled", state=state)
         return web.json_response({"ok": True, "state": state})
     return web.json_response({"ok": False, "state": state}, status=404)
 
 
 async def reset_book(request: web.Request) -> web.Response:
+    # BUG-05 fix: require admin token — set ADMIN_TOKEN env var to enable this endpoint
+    if not ADMIN_TOKEN:
+        return web.json_response({"ok": False, "error": "reset is disabled"}, status=403)
+    token = request.headers.get("X-Admin-Token", "")
+    if token != ADMIN_TOKEN:
+        return web.json_response({"ok": False, "error": "unauthorized"}, status=401)
+
     hub: EngineHub = request.app["hub"]
     async with hub.lock:
         hub.service = MatchingEngineService()
         state = hub.state()
-    await hub.broadcast("book_reset")
+    await hub.broadcast("book_reset", state=state)
     return web.json_response({"ok": True, "state": state})
 
 
