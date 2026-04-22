@@ -233,41 +233,34 @@ class TestCancelThenReplace:
         snap = book.snapshot()
         assert snap["buys"] == [] or snap["sells"] == []
 
-    def test_duplicate_order_id_creates_zombie(self):
+    def test_duplicate_order_id_rejected_by_dedup(self):
         """
-        ADVERSARIAL: Submit cùng order_id 2 lần → cancel chỉ xóa 1 → zombie.
-
-        Đây là bug thực: không có kiểm tra uniqueness trong _rest().
-        cancel() return sớm sau khi xóa đơn đầu tiên.
+        FIX BUG-03: Submit cùng order_id 2 lần → lần 2 bị reject (dedup).
+        cancel() xóa đúng 1 entry → sổ trống hoàn toàn.
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 5, 100.0, 1))
-        book.submit(lim("B1", "BUY", 5, 100.0, 2))  # duplicate ID, khác ts
+        book.submit(lim("B1", "BUY", 5, 100.0, 2))  # duplicate — bị reject bởi _rest()
 
         buys_before = book.snapshot()["buys"]
-        assert len(buys_before) == 2, "Cả 2 orders đều vào sổ (không có dedup)"
+        assert len(buys_before) == 1, "Dedup: chỉ 1 entry được chấp nhận"
 
         cancelled = book.cancel("B1")
         assert cancelled is True
 
         buys_after = book.snapshot()["buys"]
-        # BUG: chỉ 1 order bị xóa, 1 order còn lại như "zombie"
-        assert len(buys_after) == 1, (
-            "BUG PHÁT HIỆN: Cancel chỉ xóa order đầu tiên; "
-            f"còn {len(buys_after)} order(s) với ID 'B1' trong sổ"
-        )
-        assert buys_after[0]["order_id"] == "B1", "Zombie order vẫn có ID = 'B1'"
+        assert buys_after == [], "Sau cancel, sổ phải trống — không có zombie"
 
     def test_duplicate_id_after_partial_fill_then_cancel(self):
         """
-        ADVERSARIAL COMPOUND: partial fill → submit duplicate ID → cancel.
+        FIX BUG-03 COMPOUND: partial fill → submit duplicate ID (bị reject) → cancel.
 
         Điều kiện kết hợp:
-          1. B1 resting, bị partial fill (remaining < qty)
-          2. Submit B1 lần 2 (không bị reject)
-          3. Cancel B1 → chỉ xóa 1 trong 2 bản
+          1. B1 resting, bị partial fill (remaining=7)
+          2. Submit B1 lần 2 → bị reject vì B1 đã tồn tại trong sổ
+          3. Cancel B1 → xóa đúng bản gốc, sổ trống
 
-        Kết quả: bản còn lại (chưa bị partial fill) vẫn tồn tại trong sổ.
+        Kết quả: không có zombie.
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 10, 100.0, 1))   # resting
@@ -276,21 +269,15 @@ class TestCancelThenReplace:
         book.submit(lim("S_partial", "SELL", 3, 100.0, 2))
         assert book.snapshot()["buys"][0]["remaining"] == 7
 
-        # Submit B1 lần 2 (duplicate)
+        # Submit B1 lần 2 — bị dedup reject vì B1 vẫn đang resting
         book.submit(lim("B1", "BUY", 5, 100.0, 3))
-
-        # Bây giờ buys có 2 entries với order_id="B1"
         buys = book.snapshot()["buys"]
-        assert len(buys) == 2, "Phải có 2 orders với cùng ID"
+        assert len(buys) == 1, "Dedup: duplicate bị reject, chỉ có 1 entry"
+        assert buys[0]["remaining"] == 7, "Entry duy nhất là bản gốc đã partial fill"
 
-        # Cancel chỉ xóa 1
         book.cancel("B1")
         buys_after = book.snapshot()["buys"]
-
-        # BUG: 1 order vẫn còn
-        assert len(buys_after) == 1, (
-            f"BUG: Sau cancel, vẫn còn {len(buys_after)} order(s) với ID 'B1'"
-        )
+        assert buys_after == [], "Sau cancel, sổ phải trống — không có zombie"
 
     def test_rapid_cancel_nonexistent_returns_false(self):
         """Cancel order không tồn tại → phải trả False, không crash."""
@@ -406,16 +393,12 @@ class TestMinimumQuantity:
         snap = book.snapshot()
         assert snap["sells"] == [], "qty=1 sell phải bị full fill"
 
-    def test_qty1_buy_bug2_gets_wrong_order_filled(self):
+    def test_qty1_buy_fifo_correct_after_fix(self):
         """
-        ADVERSARIAL: qty=1 + Bug2 → lệnh SAI được khớp.
+        FIX BUG-02: qty=1 — lệnh đến TRƯỚC (B1) phải được khớp trước (FIFO).
 
-        Điều kiện kết hợp:
-          1. B1 @100 ts=1 (đến trước)
-          2. B2 @100 ts=2 (đến sau)
-          3. Bug2: sort LIFO → B2 đứng trước B1 trong sổ
-          4. SELL qty=1 → khớp B2 (sai) thay vì B1 (đúng)
-          5. B1 còn qty=1 trong sổ — không được fill
+        Sau fix _sort_books, buys sort bằng (−price, timestamp) ascending:
+          B1(ts=1) đứng trước B2(ts=2) cùng giá → B1 khớp trước.
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 1, 100.0, 1))  # ts=1, đến trước
@@ -424,42 +407,33 @@ class TestMinimumQuantity:
         trades = book.submit(lim("S1", "SELL", 1, 100.0, 3))
 
         assert len(trades) == 1
-        # ĐÚNG là B1 phải được khớp (FIFO), nhưng Bug2 khiến B2 khớp trước
-        correct_fill = trades[0].buy_order_id == "B1"
-        wrong_fill = trades[0].buy_order_id == "B2"
-
-        assert wrong_fill, (
-            "BUG2 PHÁT HIỆN: B2 (đến sau) được khớp thay vì B1 (đến trước). "
-            f"Got: {trades[0].buy_order_id}"
+        assert trades[0].buy_order_id == "B1", (
+            f"FIFO: B1 (đến trước) phải được khớp. Got: {trades[0].buy_order_id}"
         )
 
-        # B1 phải còn lại trong sổ (chưa được fill)
+        # B2 còn lại trong sổ (chưa được fill)
         buys = book.snapshot()["buys"]
         assert len(buys) == 1
-        assert buys[0]["order_id"] == "B1"
+        assert buys[0]["order_id"] == "B2"
 
-    def test_qty1_market_order_bug1_no_match(self):
+    def test_qty1_market_order_matches_after_fix(self):
         """
-        ADVERSARIAL: qty=1 + MARKET order + Bug1 → không có trade.
+        FIX BUG-01: qty=1 + MARKET order → phải tạo 1 trade.
 
-        Điều kiện kết hợp:
-          1. SELL LIMIT qty=1 @100 đang resting
-          2. BUY MARKET qty=1 (price=None)
-          3. Bug1: _is_match kiểm tra `price is not None` → False
-          4. Dù điều kiện hoàn hảo để khớp, không có trade nào được tạo
+        Sau fix _is_match: MARKET order trả True vô điều kiện → khớp ngay.
         """
         book = OrderBook()
         book.submit(lim("S1", "SELL", 1, 100.0, 1))
         trades = book.submit(mkt("M1", "BUY", 1, 2))
 
-        assert len(trades) == 0, (
-            "BUG1 PHÁT HIỆN: Market order qty=1 không khớp dù SELL sẵn có. "
-            f"Số trade: {len(trades)}"
+        assert len(trades) == 1, (
+            f"Market order phải tạo 1 trade. Got: {len(trades)}"
         )
+        assert trades[0].quantity == 1
+        assert trades[0].price == 100.0
 
-        # Hệ quả: S1 vẫn còn trong sổ (chưa được fill)
         snap = book.snapshot()
-        assert len(snap["sells"]) == 1, "S1 phải còn lại trong sổ do không được fill"
+        assert snap["sells"] == [], "S1 đã được fill hoàn toàn"
 
     def test_qty1_cancel_then_no_match(self):
         """Cancel qty=1 order rồi SELL vào → không khớp được."""
@@ -477,45 +451,32 @@ class TestMinimumQuantity:
 
 class TestCompoundBugs:
 
-    def test_bug1_x_bug2_combined(self):
+    def test_fix01_fix02_market_and_fifo_correct(self):
         """
-        COMPOUND: Bug1 (market) + Bug2 (sort) active simulanteously.
+        REGRESSION FIX BUG-01 + BUG-02: market works + buy side FIFO.
 
-        Điều kiện:
-          1. B1 @100 ts=1, B2 @100 ts=2 trên sổ (Bug2: B2 đứng trước)
-          2. SELL MARKET qty=3 → Bug1 khiến không có trade nào
-          3. Cả B1, B2 đều ở lại sổ không được fill
-          4. Bug2 vẫn làm đảo thứ tự trong sổ
-
-        Kết quả: Double failure — không fill được VÀ thứ tự sai.
+        Sau fix:
+          1. B1 @100 ts=1 đứng trước B2 @100 ts=2 trong sổ (FIFO)
+          2. SELL MARKET qty=10 → khớp B1 trước, rồi B2
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 5, 100.0, 1))
         book.submit(lim("B2", "BUY", 5, 100.0, 2))
 
-        # Bug2: sổ BUY phải là [B2, B1] (LIFO sai)
+        # FIFO: B1 phải đứng trước B2
         ids_before = [o["order_id"] for o in book.snapshot()["buys"]]
-        assert ids_before == ["B2", "B1"], f"Bug2: Got {ids_before}"
+        assert ids_before == ["B1", "B2"], f"FIFO: Got {ids_before}"
 
-        # Bug1: MARKET không khớp được
+        # Market order phải khớp được
         trades = book.submit(mkt("SM", "SELL", 10, 3))
-        assert len(trades) == 0, f"Bug1: Got {len(trades)} trades (expected 0)"
+        assert len(trades) == 2, f"Market phải tạo 2 trades. Got: {len(trades)}"
+        assert trades[0].buy_order_id == "B1", "B1 phải được fill trước (FIFO)"
+        assert trades[1].buy_order_id == "B2"
+        assert book.snapshot()["buys"] == []
 
-        # Sổ không thay đổi
-        ids_after = [o["order_id"] for o in book.snapshot()["buys"]]
-        assert ids_after == ["B2", "B1"]
-
-    def test_bug2_x_accumulation_wrong_order_drained(self):
+    def test_fix02_fifo_order_filled_correctly(self):
         """
-        COMPOUND: Bug2 × partial fill × nhiều SELL liên tiếp.
-
-        Điều kiện:
-          1. B1 @100 ts=1 qty=10, B2 @100 ts=2 qty=10
-          2. Bug2: sổ = [B2, B1]
-          3. SELL qty=10 → khớp B2 (sai, nên là B1)
-          4. B2 fully filled, B1 chưa bị fill dù đến trước
-
-        Hệ quả: B1 (đến trước) bị "bỏ đói", B2 (đến sau) được fill toàn bộ.
+        REGRESSION FIX BUG-02: B1 (ts=1, đến trước) phải được fill trước B2 (ts=2).
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 10, 100.0, 1))
@@ -525,24 +486,17 @@ class TestCompoundBugs:
 
         assert len(trades) == 1
         assert trades[0].quantity == 10
-        # BUG2: B2 bị fill (sai), B1 còn nguyên
-        assert trades[0].buy_order_id == "B2", \
-            f"Bug2: B2 được fill thay vì B1. Got: {trades[0].buy_order_id}"
+        assert trades[0].buy_order_id == "B1", \
+            f"FIFO: B1 phải được fill trước. Got: {trades[0].buy_order_id}"
 
         snap = book.snapshot()
         assert len(snap["buys"]) == 1
-        assert snap["buys"][0]["order_id"] == "B1"  # B1 vẫn còn, chưa được fill
-        assert snap["buys"][0]["remaining"] == 10   # B1 chưa bị fill chút nào
+        assert snap["buys"][0]["order_id"] == "B2"  # B2 còn lại, chưa được fill
+        assert snap["buys"][0]["remaining"] == 10
 
-    def test_bug2_x_large_n_fifo_violation_accumulation(self):
+    def test_fix02_large_n_fifo_order(self):
         """
-        COMPOUND: Bug2 × N orders cùng giá → thứ tự fill hoàn toàn đảo ngược.
-
-        Điều kiện:
-          1. N=5 BUY orders cùng giá @100, ts = 1,2,3,4,5
-          2. Bug2 sort: thứ tự trong sổ = [ts5, ts4, ts3, ts2, ts1] (LIFO)
-          3. N SELL orders, mỗi cái qty=1 → lần lượt fill từng BUY
-          4. Fill thứ tự: B5, B4, B3, B2, B1 (ngược FIFO)
+        REGRESSION FIX BUG-02: N orders cùng giá → fill theo đúng thứ tự FIFO.
         """
         book = OrderBook()
         n = 5
@@ -555,31 +509,17 @@ class TestCompoundBugs:
             assert len(s) == 1
             filled_order.append(s[0].buy_order_id)
 
-        # Với Bug2 (LIFO): fill B5 trước, rồi B4, ... B1 cuối
-        expected_lifo = [f"B{n - i}" for i in range(n)]  # ["B5","B4","B3","B2","B1"]
         expected_fifo = [f"B{i + 1}" for i in range(n)]  # ["B1","B2","B3","B4","B5"]
-
-        assert filled_order == expected_lifo, (
-            f"Bug2 LIFO được xác nhận: thứ tự fill = {filled_order}\n"
-            f"Đúng phải là FIFO: {expected_fifo}"
+        assert filled_order == expected_fifo, (
+            f"FIFO phải fill B1→B5. Got: {filled_order}"
         )
 
-    def test_qty1_x_bug2_x_multiple_orders_all_wrong(self):
+    def test_fix02_qty1_multiple_orders_fifo(self):
         """
-        COMPOUND: qty=1 × Bug2 × N orders → mọi fill đều sai thứ tự.
-
-        Tất cả điều kiện kết hợp:
-          - qty=1 (không có partial fill, mỗi fill là full fill)
-          - Bug2 active (LIFO thay vì FIFO)
-          - Nhiều orders cùng giá, khác ts
-          - Mỗi SELL chỉ fill đúng 1 BUY
-
-        Kết quả: Mọi lệnh được fill theo thứ tự ngược lại (mới nhất trước).
+        REGRESSION FIX BUG-02: qty=1 × N orders → fill đúng thứ tự FIFO.
         """
         book = OrderBook()
-        ids_submitted = ["B1", "B2", "B3"]
-        tss = [10, 20, 30]
-        for bid, ts in zip(ids_submitted, tss):
+        for bid, ts in zip(["B1", "B2", "B3"], [10, 20, 30]):
             book.submit(lim(bid, "BUY", 1, 100.0, ts))
 
         filled_ids = []
@@ -587,97 +527,64 @@ class TestCompoundBugs:
             trades = book.submit(lim(f"S{i}", "SELL", 1, 100.0, 100 + i))
             filled_ids.append(trades[0].buy_order_id)
 
-        # Bug2: fill theo LIFO → [B3, B2, B1]
-        assert filled_ids == ["B3", "B2", "B1"], \
-            f"Bug2 LIFO trên qty=1: expected [B3,B2,B1] got {filled_ids}"
+        assert filled_ids == ["B1", "B2", "B3"], \
+            f"FIFO: expected [B1,B2,B3] got {filled_ids}"
 
-    def test_duplicate_id_x_bug2_x_cancel_leaves_wrong_zombie(self):
+    def test_fix03_duplicate_id_and_cancel_no_zombie(self):
         """
-        COMPOUND: Duplicate ID × Bug2 × cancel.
-
-        Điều kiện kết hợp:
-          1. B1 @100 ts=1 resting
-          2. B1 @100 ts=2 duplicate resting (no dedup)
-          3. Bug2 sort: [B1(ts=2), B1(ts=1)] — ts=2 đứng trước
-          4. cancel("B1") → xóa B1(ts=2) (đứng đầu do Bug2)
-          5. B1(ts=1) còn lại — zombie
-
-        Hệ quả của 3 điều kiện cùng lúc:
-          - Không có dedup → 2 B1 vào sổ
-          - Bug2 → sắp xếp sai thứ tự (ts=2 trước ts=1)
-          - cancel() early return → chỉ xóa 1
-          - Zombie còn lại là B1(ts=1) — là bản GỐC bị partial fill trước đó
+        REGRESSION FIX BUG-03: duplicate ID bị reject → cancel hoàn toàn → không zombie.
         """
         book = OrderBook()
-        book.submit(lim("B1", "BUY", 5, 100.0, 1))  # original, ts=1
-        book.submit(lim("B1", "BUY", 5, 100.0, 2))  # duplicate, ts=2
-
-        # Bug2: sổ = [B1(ts=2), B1(ts=1)]
-        ids = [o["order_id"] for o in book.snapshot()["buys"]]
-        tss = [o["timestamp"] for o in book.snapshot()["buys"]]
-        assert tss == [2, 1], f"Bug2: ts=2 đứng trước, ts=1 đứng sau. Got: {tss}"
-
-        # Cancel xóa B1(ts=2) — cái đứng đầu do Bug2
-        book.cancel("B1")
+        book.submit(lim("B1", "BUY", 5, 100.0, 1))
+        book.submit(lim("B1", "BUY", 5, 100.0, 2))  # bị dedup reject
 
         buys = book.snapshot()["buys"]
-        assert len(buys) == 1, "1 zombie còn lại"
-        assert buys[0]["timestamp"] == 1, \
-            f"Zombie là B1(ts=1) — bản gốc. Got ts={buys[0]['timestamp']}"
+        assert len(buys) == 1, "Dedup: chỉ 1 entry"
+        assert buys[0]["timestamp"] == 1, "Entry là bản gốc ts=1"
 
-    def test_partial_fill_then_new_order_same_id_then_sweep(self):
+        book.cancel("B1")
+        assert book.snapshot()["buys"] == [], "Không có zombie sau cancel"
+
+    def test_fix03_partial_fill_dedup_sweep(self):
         """
-        COMPOUND: partial fill → duplicate ID → sweep SELL.
+        REGRESSION FIX BUG-03: partial fill → duplicate reject → sweep chỉ fill remaining.
 
-        Điều kiện:
-          1. B1 qty=10 @100 resting
-          2. SELL qty=3 → B1 partial fill: remaining=7
-          3. Lại submit B1 qty=5 @100 ts khác (second B1)
-          4. SELL qty=12 → phải khớp cả 2 B1 (7+5=12)
-          5. Nhưng với Bug2 và duplicate ID, thứ tự fill không xác định
-
-        Kiểm tra: tổng fill phải chính xác dù có duplicate ID.
+        Sau fix dedup: submit B1 lần 2 bị reject vì B1 vẫn đang resting.
+        Sweep chỉ fill 7 (remaining của B1 gốc), không phải 12.
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 10, 100.0, 1))
 
-        # Partial fill
         book.submit(lim("S_partial", "SELL", 3, 100.0, 2))
         assert book.snapshot()["buys"][0]["remaining"] == 7
 
-        # Duplicate B1
+        # Duplicate bị reject
         book.submit(lim("B1", "BUY", 5, 100.0, 3))
+        assert len(book.snapshot()["buys"]) == 1, "Dedup: vẫn chỉ 1 entry"
+        assert book.snapshot()["buys"][0]["remaining"] == 7
 
-        total_remaining = sum(o["remaining"] for o in book.snapshot()["buys"])
-        assert total_remaining == 12, f"Tổng remaining phải là 12. Got: {total_remaining}"
+        trades = book.submit(lim("S_sweep", "SELL", 7, 100.0, 4))
+        assert sum(t.quantity for t in trades) == 7
+        assert book.snapshot()["buys"] == []
 
-        # SELL qty=12 → phải fill hết cả 2 B1
-        trades = book.submit(lim("S_sweep", "SELL", 12, 100.0, 4))
-        total_filled = sum(t.quantity for t in trades)
-        assert total_filled == 12, f"Phải fill đủ 12. Got: {total_filled}"
-        assert book.snapshot()["buys"] == [], "Sổ BUY phải trống sau khi fill hết"
-
-    def test_market_order_after_duplicate_id_creates_no_trade(self):
+    def test_fix01_fix03_market_with_dedup_sell(self):
         """
-        COMPOUND: Bug1 × duplicate ID → market order vào sổ đầy BUY nhưng không fill được.
+        REGRESSION FIX BUG-01 + BUG-03: market order khớp với sells đã dedup.
 
-        Điều kiện:
-          1. 2 SELL orders đang resting
-          2. Submit BUY MARKET → Bug1 chặn match
-          3. Kết quả: 0 trades, 2 SELLs vẫn còn trên sổ
+        Sau fix: duplicate SELL bị reject → 1 SELL trong sổ.
+        Market BUY khớp ngay với SELL đó.
         """
         book = OrderBook()
         book.submit(lim("S1", "SELL", 5, 100.0, 1))
-        book.submit(lim("S1", "SELL", 5, 100.0, 2))  # duplicate SELL ID
+        book.submit(lim("S1", "SELL", 5, 100.0, 2))  # bị dedup reject
 
         sells_before = len(book.snapshot()["sells"])
-        assert sells_before == 2
+        assert sells_before == 1, "Dedup: chỉ 1 SELL entry"
 
-        trades = book.submit(mkt("M1", "BUY", 10, 3))
-
-        # Bug1: không có trade nào
-        assert len(trades) == 0
-        assert len(book.snapshot()["sells"]) == 2, "Cả 2 SELL vẫn còn nguyên"
+        trades = book.submit(mkt("M1", "BUY", 5, 3))
+        assert len(trades) == 1, f"Market phải khớp. Got: {len(trades)} trades"
+        assert trades[0].quantity == 5
+        assert book.snapshot()["sells"] == []
 
     def test_sequence_dependency_cancel_vs_fill(self):
         """
@@ -705,12 +612,12 @@ class TestCompoundBugs:
         assert trades_b == [], "B1 đã bị cancel → S1 không khớp được"
         assert len(book_b.snapshot()["sells"]) == 1
 
-    def test_price_time_priority_bug2_survives_multiple_sort_calls(self):
+    def test_fix02_fifo_stable_across_multiple_sort_calls(self):
         """
-        COMPOUND: Bug2 persists across multiple _sort_books() calls.
+        REGRESSION FIX BUG-02: FIFO ổn định dù _sort_books() được gọi nhiều lần.
 
-        Mỗi lần submit() gọi _sort_books() ở đầu hàm.
-        Bug2 không bị "heal" qua nhiều lần sort — vẫn LIFO mỗi lần.
+        Sau fix: B1 (ts=1) phải đứng trước B2 (ts=999) cùng giá @100,
+        dù _sort_books() được gọi nhiều lần qua các submit trung gian.
         """
         book = OrderBook()
         book.submit(lim("B1", "BUY", 2, 100.0, 1))
@@ -727,9 +634,8 @@ class TestCompoundBugs:
         # Thêm B2 @100 với ts lớn hơn B1
         book.submit(lim("B2", "BUY", 2, 100.0, 999))
 
-        # Bug2: B2 (ts=999) đứng trước B1 (ts=1) trong nhóm @100
-        top_100_ids = [o["order_id"] for o in buys if o["price"] == 100.0]
+        # FIFO: B1 (ts=1, đến trước) phải đứng trước B2 (ts=999) trong nhóm @100
         buys_fresh = book.snapshot()["buys"]
         top_ids = [o["order_id"] for o in buys_fresh if o["price"] == 100.0]
-        assert top_ids == ["B2", "B1"], \
-            f"Bug2: B2 (ts=999 mới hơn) đứng trước B1 (ts=1). Got: {top_ids}"
+        assert top_ids == ["B1", "B2"], \
+            f"FIFO: B1 (ts=1) phải đứng trước B2 (ts=999). Got: {top_ids}"
