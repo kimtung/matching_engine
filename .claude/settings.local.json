@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -x --tb=short)",
+      "Bash(python -m pytest tests/test_stop_orders.py -v --tb=short)",
+      "Bash(python -m pytest tests/ --tb=short)",
+      "Bash(python *)",
+      "Bash(curl *)"
+    ]
+  }
+}

@@ -168,6 +168,16 @@ button.small {
   color: var(--sell);
 }
 
+.stop-panel {
+  margin-bottom: 18px;
+  border-left: 4px solid var(--accent);
+}
+
+.stop-panel .pill {
+  color: var(--accent);
+  background: #f3e2cc;
+}
+
 .table-wrap {
   overflow: auto;
 }

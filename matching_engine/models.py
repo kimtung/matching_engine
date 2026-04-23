@@ -12,6 +12,11 @@ class Side(str, Enum):
 class OrderType(str, Enum):
     LIMIT = "LIMIT"
     MARKET = "MARKET"
+    STOP_MARKET = "STOP_MARKET"
+    STOP_LIMIT = "STOP_LIMIT"
+
+
+STOP_ORDER_TYPES = (OrderType.STOP_MARKET, OrderType.STOP_LIMIT)
 
 
 @dataclass(slots=True)
@@ -22,6 +27,7 @@ class Order:
     timestamp: int
     price: float | None = None
     order_type: OrderType = OrderType.LIMIT
+    stop_price: float | None = None
     remaining: int = field(init=False)
 
     def __post_init__(self) -> None:

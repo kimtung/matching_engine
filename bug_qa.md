@@ -13,12 +13,12 @@
 | QA-02 | FIFO Bị Đảo Ngược Trên Buy Side | **HIGH** | ✅ FIXED |
 | QA-03 | Zombie Order Sau Duplicate Submit + Cancel | **HIGH** | ✅ FIXED |
 | QA-04 | SELL Cancel Không Notify WebSocket Clients | **MEDIUM** | ✅ FIXED |
-| QA-05 | Negative Price — Engine Layer Chưa Validate | **HIGH** | ❌ OPEN |
-| QA-06 | Invalid order_type Silently Treated as LIMIT | **MEDIUM** | ❌ OPEN |
+| QA-05 | Negative Price — Engine Layer Chưa Validate | **HIGH** | ✅ FIXED |
+| QA-06 | Invalid order_type Silently Treated as LIMIT | **MEDIUM** | ✅ FIXED |
 | QA-07 | Partial Fill → Duplicate ID → Cancel → Zombie | **HIGH** | ✅ FIXED (by QA-03) |
-| QA-08 | WebSocket Client Nhận Event Trước Initial State | **MEDIUM** | ❌ OPEN |
-| QA-09 | Trade History Tăng Vô Hạn — Memory Leak | **MEDIUM** | ❌ OPEN |
-| QA-10 | GET /api/state Không Có Lock | **MEDIUM** | ❌ OPEN |
+| QA-08 | WebSocket Client Nhận Event Trước Initial State | **MEDIUM** | ✅ FIXED |
+| QA-09 | Trade History Tăng Vô Hạn — Memory Leak | **MEDIUM** | ✅ FIXED |
+| QA-10 | GET /api/state Không Có Lock | **MEDIUM** | ✅ FIXED |
 | QA-11 | Auto Order-ID Collision → Zombie Dưới Load | **MEDIUM** | ✅ FIXED |
 | QA-12 | Quantity = 0 Silently No-Op | **LOW** | ✅ FIXED |
 | QA-13 | Reset Endpoint Không Cần Auth | **CRITICAL** | ✅ FIXED |
@@ -26,15 +26,9 @@
 
 ---
 
-## Bugs Còn Mở (5 bugs)
+## Bugs Còn Mở (0 bugs)
 
-| ID | Severity | Mô tả ngắn |
-|----|----------|------------|
-| QA-05 | HIGH | Engine không validate price âm — chỉ web layer có guard |
-| QA-06 | MEDIUM | `order_type="FOO"` silently treated as LIMIT, không báo lỗi |
-| QA-08 | MEDIUM | WS client add vào set trước khi nhận initial state → race condition |
-| QA-09 | MEDIUM | `self.trades` list không bao giờ prune → memory leak + payload bloat |
-| QA-10 | MEDIUM | `GET /api/state` không có lock → latent inconsistent read |
+Tất cả bug đã được fix. Xem phần từng bug bên dưới để biết cụ thể.
 
 ---
 

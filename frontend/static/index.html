@@ -15,6 +15,7 @@
       <div class="hero-meta">
         <span class="pill socket offline" id="socket-status">Socket connecting</span>
         <span class="pill" id="backend-target">Backend: http://127.0.0.1:8000</span>
+        <span class="pill" id="last-price">Last: -</span>
       </div>
     </section>
 
@@ -38,6 +39,8 @@
             <select id="order-type" name="order_type">
               <option value="LIMIT">LIMIT</option>
               <option value="MARKET">MARKET</option>
+              <option value="STOP_MARKET">STOP MARKET</option>
+              <option value="STOP_LIMIT">STOP LIMIT</option>
             </select>
           </label>
         </div>
@@ -47,8 +50,17 @@
             <input id="quantity" name="quantity" type="number" min="1" value="1" required />
           </label>
           <label id="price-field">
-            Price
+            <span id="price-label">Price</span>
             <input id="price" name="price" type="number" min="0" step="0.01" value="100" />
+          </label>
+        </div>
+        <div class="two-col">
+          <label id="stop-price-field" style="display:none">
+            Stop Price
+            <input id="stop-price" name="stop_price" type="number" min="0" step="0.01" value="105" />
+          </label>
+          <label id="stop-hint" style="display:none; color: var(--muted); align-self: end;">
+            <small>BUY stop fires khi last &ge; stop; SELL stop fires khi last &le; stop.</small>
           </label>
         </div>
         <div class="actions">
@@ -78,6 +90,30 @@
           </table>
         </div>
       </section>
+    </section>
+
+    <section class="panel stop-panel">
+      <div class="panel-head">
+        <h2>Pending Stop Orders</h2>
+        <span id="stop-count" class="pill">0 stops</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Side</th>
+              <th>Type</th>
+              <th>Stop Price</th>
+              <th>Limit Price</th>
+              <th>Qty</th>
+              <th>Time</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="stops-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="books">
